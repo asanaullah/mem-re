@@ -397,24 +397,24 @@ always @(posedge clk_i) begin
             	a     <=  a_buffer[ROW_BITS+COL_BITS-1:COL_BITS];
 
 	end else if (state == STATE_WRITE) begin
-		cke   <= 1'b1;
-            	cs_n  <= 1'b0;
-            	ras_n <= 1'b1;
-            	cas_n <= 1'b0;
-            	we_n  <= 1'b0;
+		
+		if (state_change_counter == delay_write_0) begin
+			cke   <= 1'b1;
+            		cs_n  <= 1'b0;
+            		ras_n <= 1'b1;
+            		cas_n <= 1'b0;
+            		we_n  <= 1'b0;	
+		end else begin
+			cke   <= 1'b1;
+            		cs_n  <= 1'b0;
+            		ras_n <= 1'b1;
+            		cas_n <= 1'b1;
+           		we_n  <= 1'b1;
+		end
             	ba    <= ba_buffer;
            	a     <= atemp_0 | atemp_1 | atemp_2;
 		dm_out <= 0;
-		
-		if (state_change_counter)
-			state_change_counter		<=	state_change_counter - 32'd1;
-		else begin
-			dqs_en <= 1'b0;
-            		dq_en  <= 1'b0;
-			state				<=	STATE_PRECHARGE;
-			prev_state			<=	STATE_WRITE;
-		end
-		
+	
 		if (state_change_counter  == 32'd5) begin
 			dqs_en <= 1'b1;
             		dqs_out <= {DQS_BITS{1'b1}};
@@ -423,9 +423,18 @@ always @(posedge clk_i) begin
               		dqs_out <= (clk_i==1) ? {DQS_BITS{1'b0}} :  {DQS_BITS{1'b1}};
                 	dq_en  <= 1'b1;
                 	dq_out <= (clk_i==1) ? dq_in_buffer[DQ_BITS-1:0] : dq_in_buffer[DQ_BITS+DQ_BITS-1:DQ_BITS];
-			dq_in_buffer <= dq_in_buffer >> DQ_BITS*2;
+			dq_in_buffer <= (dq_in_buffer >> DQ_BITS*2);
             	end
 
+		if (state_change_counter)
+			state_change_counter		<=	state_change_counter - 32'd1;
+		else begin
+			dqs_en 				<= 	1'b0;
+            		dq_en  				<= 	1'b0;
+			state				<=	STATE_PRECHARGE;
+			prev_state			<=	STATE_WRITE;
+		end
+		
 
 	end else if (state == STATE_PRECHARGE) begin
 		state_change_counter		<=	delay_precharge;
