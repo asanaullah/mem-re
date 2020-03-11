@@ -215,16 +215,28 @@ module dram_controller(
    wire [31:0] delay_initialization_final	=	32'd512;
    wire [31:0] delay_powerup_final		=	tx_pr;
    wire [31:0] delay_write_0			=	{27'd0,wl} + (bl>>1) + 32'd1;
+   wire [31:0] delay_refresh			=	{20'd0,trfc};
+
+// Refresh
+   wire [31:0] refresh_threshold		=	{20'd0,trfc} + 32'd10;
+   reg  [31:0] refresh_counter; 
 
 // Addressing
    wire   [COL_BITS-1:0] col		=	a_buffer[COL_BITS-1:0];		
    wire   [ADDR_BITS-1:0] atemp_0	=	col & 10'h3ff;         //a[ 9: 0] = COL[ 9: 0]
    wire   [ADDR_BITS-1:0] atemp_1	=	((col>>10) & 1'h1)<<11;//a[   11] = COL[   10]
    wire   [ADDR_BITS-1:0] atemp_2	=	(col>>11)<<13;         //a[ N:13] = COL[ N:11]
+   wire   [ROW_BITS-1:0] row 		=	address[ROW_BITS+COL_BITS-1:COL_BITS];
+
+// Row Activate Track
+   reg    [ROW_BITS:0] activation_status[2**BA_BITS-1:0];
+
+
 
 // State Machine
 always @(posedge clk_i) begin
-
+	integer i;
+	refresh_counter <= (refresh_counter) ?  refresh_counter - 32'd1 : refresh_counter; 
 	if (rst_i) begin
 		state 			<= 	STATE_POWERUP_0;
 		prev_state 		<= 	STATE_POWERUP_0;
@@ -246,7 +258,11 @@ always @(posedge clk_i) begin
 		busy			<=	1'b1;
 		dq_in_buffer		<= 	0;
 		read_data 		<=	0;
-	
+		for (i=0; i < 2**BA_BITS; i++) begin
+			activation_status[i] <= {ROW_BITS+1{1'b1}};
+		end
+		refresh_counter		<=	0;
+		
 	end else if (state == STATE_NOP) begin
 		if (state_change_counter)
 			state_change_counter		<=	state_change_counter - 32'd1;
@@ -386,18 +402,37 @@ always @(posedge clk_i) begin
 		busy		<=	0;
 		dq_in_buffer	<=	{write_data,{DQ_BITS{1'b0}}};	
 		a_buffer	<=	address[ROW_BITS+COL_BITS-1:0];
-		ba_buffer	<=	address[BA_BITS+ROW_BITS+COL_BITS-1:ROW_BITS+COL_BITS];	
-		if (write) begin
-			cached_state		<=	STATE_WRITE;
-			state			<=	STATE_ACTIVATE;
-			odt 			<=	1'b1;
-		end else if (read) begin
-			cached_state 		<= 	STATE_READ;	
-			state			<=	STATE_ACTIVATE;
-			odt			<=	1'b0;
+		ba_buffer	<=	address[BA_BITS+ROW_BITS+COL_BITS-1:ROW_BITS+COL_BITS];
+		
+		if (refresh_counter == 0) begin
+			refresh_counter <= refresh_threshold;
+			state	      <= STATE_REFRESH;
+		
+		end else begin
+			if (0) begin//activation_status[address[BA_BITS+ROW_BITS+COL_BITS-1:ROW_BITS+COL_BITS]] == {1'b0,row}) begin
+				if (write) begin
+					state_change_counter	<=	delay_write_0;
+					state			<=	STATE_WRITE;
+					odt 			<=	1'b1;
+				end else if (read) begin
+					state_change_counter	<=	delay_read;	
+					state			<=	STATE_READ;
+					odt			<=	1'b0;
+				end
+			end else begin
+				if (write) begin
+					cached_state		<=	STATE_WRITE;
+					state			<=	STATE_ACTIVATE;
+					odt 			<=	1'b1;
+					activation_status[address[BA_BITS+ROW_BITS+COL_BITS-1:ROW_BITS+COL_BITS]] <= {1'b0,row};
+				end else if (read) begin
+					cached_state 		<= 	STATE_READ;	
+					state			<=	STATE_ACTIVATE;
+					odt			<=	1'b0;
+					activation_status[address[BA_BITS+ROW_BITS+COL_BITS-1:ROW_BITS+COL_BITS]] <= {1'b0,row};
+				end
+			end
 		end
-
-
 	end else if (state == STATE_ACTIVATE) begin
 		busy <= 1;
 		state_change_counter		<=	delay_activate;
@@ -444,6 +479,7 @@ always @(posedge clk_i) begin
 			cached_state			<=	STATE_PRECHARGE;
 			prev_state			<=	STATE_WRITE;
 			state_change_counter		<=	{20'd0, twr};
+			ack 				<= 	1'b1;
 		end
 
 
@@ -488,7 +524,17 @@ always @(posedge clk_i) begin
             	ba    <= ba_buffer;
             	a     <= 0;
             	ack   <= 0;
-
+            	
+            	
+	end else if (state == STATE_REFRESH) begin
+		cke   <= 1'b1;
+            	cs_n  <= 1'b0;
+            	ras_n <= 1'b0;
+            	cas_n <= 1'b0;
+            	we_n  <= 1'b1;
+		state				<=	STATE_NOP;
+		cached_state			<=	STATE_IDLE;
+		state_change_counter		<=	delay_refresh;
 	end
 end
 
