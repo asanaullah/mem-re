@@ -64,7 +64,8 @@ module dram_controller(
     wire         [ADDR_BITS-1:0] mode_reg2 = {14'b00001000_000_000} | mr_cwl<<3;   //Extended Mode Register 2
     wire                  [3:0] cl       = {mode_reg0[2], mode_reg0[6:4]} + 4;              //CAS Latency
     wire                        bo       = mode_reg0[3];                    //Burst Order
-    reg                   [3:0] bl	 = 4'd8;                                         //Burst Length
+    wire                   [31:0] bl	 = 32'd8;                                         //Burst Length
+    
     wire                  [3:0] cwl      = mode_reg2[5:3] + 5;              //CAS Write Latency
     wire                  [3:0] al       = (mode_reg1[4:3] === 2'b00) ? 4'h0 : cl - mode_reg1[4:3]; //Additive Latency
     wire                  [4:0] rl       = cl + al;                         //Read Latency
@@ -82,13 +83,16 @@ module dram_controller(
     assign dm   = dqs_en ?  dm_out : {DM_BITS{1'bz}};
     assign dqs  = dqs_en ? dqs_out : {DQS_BITS{1'bz}};
     assign dqs_n    = dqs_en ? ~dqs_out : {DQS_BITS{1'bz}};
+    
+    always @(*)
+    	dqs_out = #(125) {DQS_BITS{clk_400M}};
 
 // Buffers
 
-    reg		[BL_MAX*DQ_BITS-1:0] 	dq_in_buffer;
-    reg		[BL_MAX*DQ_BITS-1:0] 	dq_out_buffer;
+    reg		[BL_MAX*DQ_BITS+DQ_BITS-1:0] 		dq_in_buffer;
+    reg		[BL_MAX*DQ_BITS-1:0] 		dq_out_buffer;
     reg		[ROW_BITS+COL_BITS-1:0]		a_buffer;
-    reg		[BA_BITS-1:0]		ba_buffer;	
+    reg		[BA_BITS-1:0]			ba_buffer;	
 
 // Clock
 
@@ -168,25 +172,25 @@ module dram_controller(
    wire [31:0] STATE_LOADMODE_1		=		32'd3;
    wire [31:0] STATE_LOADMODE_2		=		32'd4;
    wire [31:0] STATE_LOADMODE_3		=		32'd5;
-   wire [31:0] STATE_REFRESH		=		32'd6;
+   wire [31:0] STATE_REFRESH			=		32'd6;
    wire [31:0] STATE_PRECHARGE		=		32'd7;
-   wire [31:0] STATE_ACTIVATE		=		32'd8;
-   wire [31:0] STATE_WRITE		=		32'd9;
-   wire [31:0] STATE_READ		=		32'd10;
-   wire [31:0] STATE_ZQCALLIBRATION	=		32'd11;
-   wire [31:0] STATE_NOP		=		32'd12;
-   wire [31:0] STATE_DESELCT		=		32'd13;
+   wire [31:0] STATE_ACTIVATE			=		32'd8;
+   wire [31:0] STATE_WRITE			=		32'd9;
+   wire [31:0] STATE_READ			=		32'd10;
+   wire [31:0] STATE_ZQCALLIBRATION		=		32'd11;
+   wire [31:0] STATE_NOP			=		32'd12;
+   wire [31:0] STATE_DESELCT			=		32'd13;
    wire [31:0] STATE_POWERDOWN		=		32'd14;
-   wire [31:0] STATE_IDLE		=		32'd15;
-   wire [31:0] STATE_SET_ODT		=		32'd16;
+   wire [31:0] STATE_IDLE			=		32'd15;
+   wire [31:0] STATE_SET_ODT			=		32'd16;
 
 
 
 // Counters
 
    reg [31:0] state_change_counter;
-   wire [31:0] delay_powerup_0			=	32'd80000;
-   wire [31:0] delay_powerup_1			=	32'd200000;
+   wire [31:0] delay_powerup_0			=	0;//32'd80000;
+   wire [31:0] delay_powerup_1			=	0;//32'd200000;
    wire [31:0] delay_precharge			=	{20'd0 ,trp};	
    wire [31:0] delay_activate			= 	{20'd0, trcd};
    wire [31:0] delay_write			=	{20'd0,{{7'd0,wl} + 12'd4 + twtr}};
@@ -194,7 +198,7 @@ module dram_controller(
    wire [31:0] delay_load_mode			=	{20'd0, tmrd-12'd1};
    wire [31:0] delay_initialization_final	=	32'd512;
    wire [31:0] delay_powerup_final		=	tx_pr;
-   wire [31:0] delay_write_0			=	{27'd0,wl} + 32'd4 + 32'd1;
+   wire [31:0] delay_write_0			=	{27'd0,wl} + (bl >> 1) +32'd1;
 
 
 // loop
@@ -215,20 +219,18 @@ always @(posedge clk_i) begin
 		prev_state 		<= 	STATE_POWERUP_0;
 		cached_state		<=	STATE_POWERUP_0;
 		state_change_counter 	<=	delay_powerup_0;
-		rst_n   <= 1'b0;
+		rst_n   			<= 	1'b0;
 		cke			<=	1'b0;
 		cs_n			<=	1'b1;
 		ras_n			<=	1'b1;
-		cas_n   		<=	1'b1;
-	        we_n    		<=	1'b1;
-	        ba      		<=	{BA_BITS{1'bz}};
-	        a       		<=	{ADDR_BITS{1'bz}};
-	        odt	 		<=	1'b0;
-	        dq_en   		<=	1'b0;
-	        dqs_en  		<=	1'b0;
-		dm_out			<=	{DM_BITS{1'bz}};;
-		dq_out			<=	{DQ_BITS{1'bz}};;
-		dqs_out			<=	{DQS_BITS{1'bz}};;
+		cas_n   			<=	1'b1;
+	        	we_n    			<=	1'b1;
+	        	ba      			<=	{BA_BITS{1'bz}};
+	       	a       			<=	{ADDR_BITS{1'bz}};
+	        	odt	 		<=	1'b0;
+	        	dq_en   			<=	1'b0;
+	        	dqs_en  			<=	1'b0;
+		dm_out			<=	{DM_BITS{1'bz}};
 		ack			<=	1'b0;
 		busy			<=	1'b1;
 		dq_in_buffer		<= 	0;
@@ -371,7 +373,7 @@ always @(posedge clk_i) begin
 
 	end else if (state == STATE_IDLE) begin
 		busy		<=	0;
-		dq_in_buffer	<=	write_data;
+		dq_in_buffer	<=	{write_data,{DQ_BITS{1'b0}}};
 		read_data	<=	dq_out_buffer;	
 		a_buffer	<=	address[ROW_BITS+COL_BITS-1:0];
 		ba_buffer	<=	address[BA_BITS+ROW_BITS+COL_BITS-1:ROW_BITS+COL_BITS];	
@@ -415,24 +417,20 @@ always @(posedge clk_i) begin
            	a     <= atemp_0 | atemp_1 | atemp_2;
 		dm_out <= 0;
 	
-		if (state_change_counter  == 32'd5) begin
-			dqs_en <= 1'b1;
-            		dqs_out <= {DQS_BITS{1'b1}};
-            	end else if (state_change_counter  <  32'd5) begin
-                	dqs_en <=  1'b1;
-              		dqs_out <= (clk_i==1) ? {DQS_BITS{1'b0}} :  {DQS_BITS{1'b1}};
-                	dq_en  <= 1'b1;
-                	dq_out <= (clk_i==1) ? dq_in_buffer[DQ_BITS-1:0] : dq_in_buffer[DQ_BITS+DQ_BITS-1:DQ_BITS];
+		if (state_change_counter  ==  (bl>>1)+32'd1) begin
+			dq_en	<= 1'b1;
+		end else if (state_change_counter  <=  (bl>>1)) begin
 			dq_in_buffer <= (dq_in_buffer >> DQ_BITS*2);
-            	end
+		end
 
 		if (state_change_counter)
 			state_change_counter		<=	state_change_counter - 32'd1;
 		else begin
-			dqs_en 				<= 	1'b0;
             		dq_en  				<= 	1'b0;
-			state				<=	STATE_PRECHARGE;
+			state				<=	STATE_NOP;
+			cached_state			<=	STATE_PRECHARGE;
 			prev_state			<=	STATE_WRITE;
+			state_change_counter		<=	{20'd0, twr};
 		end
 		
 
@@ -449,6 +447,18 @@ always @(posedge clk_i) begin
             	a     <= 0;
 
 	end
+end
+
+always @(*) dq_out = (clk_i==1) ? dq_in_buffer[DQ_BITS-1:0] : dq_in_buffer[DQ_BITS+DQ_BITS-1:DQ_BITS];
+
+always @(posedge clk_400M) begin
+	if (state == STATE_WRITE) begin
+		if (state_change_counter <= (bl>>1)+32'd1)
+			dqs_en <= 1'b1;
+		else
+			dqs_en <= 1'b0;
+	end else
+		dqs_en <= 0;
 end
 
 
