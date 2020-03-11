@@ -185,8 +185,8 @@ module dram_controller(
 // Counters
 
    reg [31:0] state_change_counter;
-   wire [31:0] delay_powerup_0			=	0;//32'd80000;
-   wire [31:0] delay_powerup_1			=	0;//32'd200000;
+   wire [31:0] delay_powerup_0			=	32'd80000;
+   wire [31:0] delay_powerup_1			=	32'd200000;
    wire [31:0] delay_precharge			=	{20'd0 ,trp};	
    wire [31:0] delay_activate			= 	{20'd0, trcd};
    wire [31:0] delay_write			=	{20'd0,{{7'd0,wl} + 12'd4 + twtr}};
