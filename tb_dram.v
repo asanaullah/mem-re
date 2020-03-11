@@ -30,7 +30,6 @@ module tb_dram;
     wire        [DQS_BITS-1:0] 			tdqs_n;
 
 
-    reg 	[31:0] 				counter;
 
 
 
@@ -84,13 +83,7 @@ dram_controller uut(
 
 always #1250 clk_i = ~clk_i;
 
-always @(posedge clk_400M)
-	counter <= counter + 32'd1;
-
-
-
-
-//always #1000000 $display ("Counter -> %d", counter);
+always @(posedge clk_i) if (ack) $display("Read Data:\t%x\nWrite Data:\t%x", read_data, write_data);
 
 initial begin
 	clk_i = 0;
@@ -99,18 +92,22 @@ initial begin
 	read = 0;
 	address = 0;
 	write_data = 0;
-        counter = 0;
    #10000
 	rst_i = 0;
 
    @(negedge busy);
 
 	write = 1;
-	write_data = {$urandom,$urandom,$urandom,$urandom,$urandom,$urandom,$urandom,$urandom};
+	write_data = {$urandom,$urandom,$urandom,$urandom};
 	address =     {$urandom,$urandom};
-	$display ("Address: %x, Data: %x",address,write_data);
-
+   #10000
+   	write = 0;
+   	read = 1;
    @(negedge busy);
+   
+   @(negedge busy);
+   
+   
 $display ("Done");
 		$finish;
 
