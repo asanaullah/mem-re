@@ -110,7 +110,7 @@ module dram_controller(
     assign dqs  = dqs_en ? dqs_out : {DQS_BITS{1'bz}};
     assign dqs_n    = dqs_en ? ~dqs_out : {DQS_BITS{1'bz}};
  
-    always @(*) dqs_out = #(125) {DQS_BITS{clk_400M}};
+	always @(*) dqs_out = #(157) {DQS_BITS{clk_400M}};  //22.5 degree phase shift @ 400MHz
  
     always @(*) dq_out = (clk_i==1) ? dq_in_buffer[DQ_BITS-1:0] : dq_in_buffer[DQ_BITS+DQ_BITS-1:DQ_BITS];
   
