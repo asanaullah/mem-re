@@ -21,3 +21,5 @@
 -- add DDR primitive for dq_out signal
 
 -- add Tristate primitive for dq and dqs pins
+
+-- create synthesizable testbench
