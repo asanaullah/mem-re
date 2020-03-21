@@ -32,6 +32,7 @@
 *
 ****************************************************************************************/
  `timescale 1ps / 1ps
+`define den1024Mb
 
 module ddr3_module (
     reset_n,
@@ -56,7 +57,6 @@ module ddr3_module (
     sa     ,
     sda
 );
-
 
     `include "1024Mb_ddr3_parameters.vh"
 

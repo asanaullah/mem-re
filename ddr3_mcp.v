@@ -31,6 +31,7 @@
 *
 ****************************************************************************************/
  `timescale 1ps / 1ps
+`define den1024Mb
 
 module ddr3_mcp (
     rst_n,
@@ -52,7 +53,6 @@ module ddr3_mcp (
 );
 
     `include "1024Mb_ddr3_parameters.vh"
-
 
     // Declare Ports
     input   rst_n;

@@ -25,7 +25,6 @@
 *
 ****************************************************************************************/
 
-`define x16
     // Timing parameters based on 1Gb_DDR3_SDRAM.cdf - Rev. L 09/12 EN
 
                                           // SYMBOL     UNITS DESCRIPTION

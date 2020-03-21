@@ -94,7 +94,7 @@
 // DO NOT CHANGE THE TIMESCALE
 // MAKE SURE YOUR SIMULATOR USES "PS" RESOLUTION
 `timescale 1ps / 1ps
-
+`define den1024Mb
 
 module ddr3 (
     rst_n,
@@ -408,7 +408,7 @@ module ddr3 (
         reg [BA_BITS + ROW_BITS + COL_BITS - 1 : 0] addr;
         reg [BL_MAX * DQ_BITS - 1 : 0] data;
         string _char;
-        integer in, fio_status, itr;
+        integer in, fio_status,i;
 
         if (!$value$plusargs("model_data+%s", tmp_model_dir))
         begin
@@ -418,9 +418,9 @@ module ddr3 (
                 $time
             );
         end
-        
-        for (itr = 0; itr < `BANKS; itr = itr + 1)
-            memfd[itr] = open_bank_file(itr);
+
+        for (i = 0; i < `BANKS; i = i + 1)
+            memfd[i] = open_bank_file(i);
 
         // Preload section
     `ifdef mem_init
@@ -980,7 +980,7 @@ module ddr3 (
             {1'bx, DIFF_BANK , ZQ       , ACTIVATE } ,
             {1'bx, DIFF_BANK , ZQ       , ZQ       } ,
             {1'bx, DIFF_BANK , ZQ       , PWR_DOWN } ,
-            {1'bx, DIFF_BANK , ZQ       , SELF_REF } : begin if (ck_cntr - ck_zqinit < TZQINIT)                                                                                $display ("%m: at time %t ERROR:  tZQinit violation during %s", $time, cmd_string[cmd]);
+            {1'bx, DIFF_BANK , ZQ       , SELF_REF } : begin if (ck_cntr - ck_zqinit < TZQINIT)                                                                                $display ("%m: at time %t ERROR:  tZQinit violation during %s %t %t %t", $time, cmd_string[cmd], ck_cntr, ck_zqinit, TZQINIT);
                                                              if (ck_cntr - ck_zqoper < TZQOPER)                                                                                $display ("%m: at time %t ERROR:  tZQoper violation during %s", $time, cmd_string[cmd]);
                                                              if (ck_cntr - ck_zqcs < TZQCS)                                                                                    $display ("%m: at time %t ERROR:  tZQCS violation during %s", $time, cmd_string[cmd]);                        end
 
