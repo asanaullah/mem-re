@@ -2,7 +2,13 @@
 //`define SIMULATION
 module tb_dram
 `ifndef SIMULATION
-(i_clk, i_btn, read, write, invert, o_led,rst_n,clk_400M_p,clk_400M_n,cke,cs_n,ras_n,cas_n,we_n,ba,a,dm,dq,dqs_p,dqs_n,odt)
+(
+i_clk,
+// sysclk_n,sysclk_p,
+aa,
+i_btn, 
+sel, o_led,
+rst_n,clk_400M_p,clk_400M_n,cke,cs_n,ras_n,cas_n,we_n,ba,a,dm,dq,dqs_p,dqs_n,odt,uart_in,uart_out)
 `endif
 ;
 
@@ -41,6 +47,10 @@ module tb_dram
     wire        	[DQS_BITS-1:0]			tdqs_n;
 `else
     input 						i_clk; 
+//    input sysclk_n;
+ //   input sysclk_p;
+ //   wire                        i_clk2;
+ //   IBUFDS clk_d2s (.O(i_clk), .I(sysclk_p), .IB(sysclk_n));
     input 						i_btn; 
     output 		   [7:0] 		o_led;     
     output						rst_n;
@@ -58,18 +68,23 @@ module tb_dram
     inout        	[DQS_BITS-1:0]			dqs_p;
     inout        	[DQS_BITS-1:0]			dqs_n;
     output                      			odt;
+    input                                   uart_in;
+    output                                  uart_out;
     wire        	[DQS_BITS-1:0]			tdqs_n;
     wire 						rst_i = i_btn;
-    input							read;
-    input 						write;
-    input                       invert;
-    reg 		[ROW_BITS+COL_BITS+BA_BITS-1:0]	address;
-    reg		[BL_MAX*DQ_BITS-1:0]		write_data;
+    wire							read;
+    wire 						write;
+    input                       [2:0] sel;
+   wire [2:0] sel;
+    wire 		[ROW_BITS+COL_BITS+BA_BITS-1:0]	address;
+    wire		[BL_MAX*DQ_BITS-1:0]		write_data;
     wire		[BL_MAX*DQ_BITS-1:0]		read_data;
     wire						ack;
     wire						busy;
+    output aa;
 `endif
 
+assign aa = 0;
 
 wire [7:0] debug;
 wire clk_400M_p_int;
@@ -86,6 +101,7 @@ generate
    end
 endgenerate
 
+//IOBUFDS_DIFF_OUT
 
 dram_controller uut(
 	i_clk,
@@ -112,7 +128,8 @@ dram_controller uut(
     dqs_en,
     dqs_tristate_in,
     odt,
-    debug
+    debug,
+    sel
 );
 
 `ifdef SIMULATION
@@ -139,7 +156,6 @@ dram_controller uut(
 `ifdef SIMULATION
 always #5000 i_clk = ~i_clk;
 initial begin
-	integer i;
 	i_clk = 0;
 	rst_i = 1;
 	write = 0;
@@ -150,7 +166,6 @@ initial begin
 	rst_i = 0;
    	@(negedge busy);
 	
-	for (i=0; i < 1; i++) begin
 		write_data = {$urandom,$urandom,$urandom,$urandom};
 		address =    {$urandom,$urandom};
 		write = 1;
@@ -160,22 +175,18 @@ initial begin
    		@(posedge ack);
 		read = 0;
    		$display("Read Data:\t%x\nWrite Data:\t%x", read_data, write_data);
-	end   
+	 
 	$display ("Done");
+	#50000;
 	$finish;
 end
 `else
-reg				[BL_MAX*DQ_BITS-1:0]	read_buffer;
-initial read_buffer = 0;
-always @(posedge i_clk) begin		
-	if (rst_i) begin
-		write_data <= (invert) ? ~128'h92_15_35_24_40_89_5e_81_04_84_d6_09_31_f0_56_63 : 128'h92_15_35_24_40_89_5e_81_04_84_d6_09_31_f0_56_63;
-		address <= {3'd3,13'h17e6,10'h188};
-	end else begin
-         read_buffer <= read_data; 
-	end
-end
-assign o_led = read_buffer[24+:8];//debug;
+
+wire [7:0] uart_state;
+uart #(.DATAW(BL_MAX*DQ_BITS), .ADDRW(ROW_BITS+COL_BITS+BA_BITS)) 
+    hostIO (.CLK(i_clk), .RST(rst_i), .BUSY(busy), .ACK(ack), .ADDRESS(address), .WRITE(write), .READ(read), .WRITE_DATA(write_data), .READ_DATA(read_data), .UART_T (uart_out), .UART_R(uart_in), .state(uart_state));   
+
+assign o_led = debug;
 `endif
 
 

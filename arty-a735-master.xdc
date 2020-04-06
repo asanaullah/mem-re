@@ -9,10 +9,11 @@ create_clock -period 10.000 -name sys_clk_pin -waveform {0.000 5.000} -add [get_
 
 ## Switches
 set_property -dict {PACKAGE_PIN A8 IOSTANDARD LVCMOS33} [get_ports i_btn]
-set_property -dict { PACKAGE_PIN C11 IOSTANDARD LVCMOS33 } [get_ports { read }]; #IO_L13P_T2_MRCC_16 Sch=sw[1]
-set_property -dict { PACKAGE_PIN C10 IOSTANDARD LVCMOS33 } [get_ports { write }]; #IO_L13N_T2_MRCC_16 Sch=sw[2]
-set_property -dict { PACKAGE_PIN A10 IOSTANDARD LVCMOS33 } [get_ports { invert }]; #IO_L14P_T2_SRCC_16 Sch=sw[3]
+set_property -dict { PACKAGE_PIN C11 IOSTANDARD LVCMOS33 } [get_ports { sel[0] }]; #IO_L13P_T2_MRCC_16 Sch=sw[1]
+set_property -dict { PACKAGE_PIN C10 IOSTANDARD LVCMOS33 } [get_ports { sel[1] }]; #IO_L13N_T2_MRCC_16 Sch=sw[2]
+set_property -dict { PACKAGE_PIN A10 IOSTANDARD LVCMOS33 } [get_ports { sel[2] }]; #IO_L14P_T2_SRCC_16 Sch=sw[3]
 
+set_property CLOCK_DEDICATED_ROUTE FALSE [get_nets tristate_dqs[0].io/O]
 
 ## RGB LEDs
 #set_property -dict { PACKAGE_PIN E1    IOSTANDARD LVCMOS33 } [get_ports { led0_b }]; #IO_L18N_T2_35 Sch=led0_b
@@ -35,6 +36,13 @@ set_property -dict {PACKAGE_PIN T9 IOSTANDARD LVCMOS33} [get_ports {o_led[2]}]
 set_property -dict {PACKAGE_PIN T10 IOSTANDARD LVCMOS33} [get_ports {o_led[3]}]
 
 
+##USB-UART Interface
+
+set_property -dict { PACKAGE_PIN D10   IOSTANDARD LVCMOS33 } [get_ports { uart_out }]; #IO_L19N_T3_VREF_16 Sch=uart_rxd_out
+set_property -dict { PACKAGE_PIN A9    IOSTANDARD LVCMOS33 } [get_ports { uart_in }]; #IO_L14N_T2_SRCC_16 Sch=uart_txd_in
+
+
+## DDR3 Interface
 
 set_property PACKAGE_PIN R2 [get_ports {a[0]}]
 set_property SLEW FAST [get_ports {a[0]}]
@@ -88,9 +96,9 @@ set_property PACKAGE_PIN T6 [get_ports {a[12]}]
 set_property SLEW FAST [get_ports {a[12]}]
 set_property IOSTANDARD SSTL135 [get_ports {a[12]}]
 # ### ddram:0.a
-set_property LOC T8 [get_ports {a[13]} ]
-set_property SLEW FAST [get_ports {a[13]} ]
-set_property IOSTANDARD LVCMOS25 [get_ports {a[13]} ]
+set_property LOC T8 [get_ports {aa} ]
+set_property SLEW FAST [get_ports {aa} ]
+set_property IOSTANDARD SSTL135 [get_ports {aa} ]
 # ### ddram:0.ba
 set_property PACKAGE_PIN R1 [get_ports {ba[0]}]
 set_property SLEW FAST [get_ports {ba[0]}]
@@ -195,16 +203,21 @@ set_property IOSTANDARD SSTL135 [get_ports {dq[15]}]
 # ### ddram:0.dqs_p
 #set_property SLEW FAST [get_ports {dqs_p[0]} ]
 set_property IOSTANDARD DIFF_SSTL135 [get_ports {dqs_p[0]}]
-# ### ddram:0.dqs_p
 set_property IOSTANDARD DIFF_SSTL135 [get_ports {dqs_p[1]}]
+set_property IOSTANDARD DIFF_SSTL135 [get_ports {dqs_n[0]}]
+set_property IOSTANDARD DIFF_SSTL135 [get_ports {dqs_n[1]}]
 # ### ddram:0.dqs_n
 set_property PACKAGE_PIN N1 [get_ports {dqs_n[0]}]
 set_property PACKAGE_PIN N2 [get_ports {dqs_p[0]}]
-set_property IOSTANDARD DIFF_SSTL135 [get_ports {dqs_n[0]}]
 # ### ddram:0.dqs_n
 set_property PACKAGE_PIN V2 [get_ports {dqs_n[1]}]
 set_property PACKAGE_PIN U2 [get_ports {dqs_p[1]}]
-set_property IOSTANDARD DIFF_SSTL135 [get_ports {dqs_n[1]}]
+
+
+create_clock -period 2.500 -name dqs_clk_0_pin -waveform {0.937 2.188} -add [get_ports dqs_p[0]]
+create_clock -period 2.500 -name dqs_clk_1_pin -waveform {0.937 2.188} -add [get_ports dqs_p[1]]
+
+
 # ### ddram:0.clk_p
 set_property IOSTANDARD DIFF_SSTL135 [get_ports clk_400M_p]
 # ### ddram:0.clk_n

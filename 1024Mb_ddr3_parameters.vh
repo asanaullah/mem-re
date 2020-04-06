@@ -490,9 +490,9 @@
     parameter TWPRE            =    0.90; // tWPRE      tCK   DQS Write Preamble
     parameter TWPST            =    0.30; // tWPST      tCK   DQS Write Postamble
     // Command and Address
-    integer   TZQCS;                      // tZQCS      tCK   ZQ Cal (Short) time
-    integer   TZQINIT;                    // tZQinit    tCK   ZQ Cal (Long) time
-    integer   TZQOPER;                    // tZQoper    tCK   ZQ Cal (Long) time
+    wire [31:0]   TZQCS;                      // tZQCS      tCK   ZQ Cal (Short) time
+    wire [31:0]   TZQINIT;                    // tZQinit    tCK   ZQ Cal (Long) time
+    wire [31:0]   TZQOPER;                    // tZQoper    tCK   ZQ Cal (Long) time
     parameter TCCD             =       4; // tCCD       tCK   Cas to Cas command delay
     parameter TCCD_DG          =       2; // tCCD_DG    tCK   Cas to Cas command delay to different group
     parameter TRAS_MAX         =    60e9; // tRAS       ps    Maximum Active to Precharge command time

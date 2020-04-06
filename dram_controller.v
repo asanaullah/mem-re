@@ -1,5 +1,5 @@
 //`define SIMULATION
-
+//`define DEBUG
 module dram_controller(
 	clk,
 	rst_i,
@@ -26,11 +26,12 @@ module dram_controller(
 	dqs_en,
 	dqs_tristate_in,
 	odt,
-	debug
+	debug,
+	sel
 );
 
    `include "1024Mb_ddr3_parameters.vh"
-
+	parameter DQ_BUF_PADDING = 144;
 
     input 						                clk;
     input 						                rst_i;
@@ -39,8 +40,8 @@ module dram_controller(
     input 		[ROW_BITS+COL_BITS+BA_BITS-1:0]	address;
     input			[BL_MAX*DQ_BITS-1:0]		write_data;
     output reg		[BL_MAX*DQ_BITS-1:0]		read_data;
-    output reg						ack;
-    output reg						busy;
+    output   						ack;
+    output  						busy;
 
     output reg						rst_n;
     output						clk_400M;
@@ -54,20 +55,24 @@ module dram_controller(
     output 			[DM_BITS-1:0]   			dm;
     inout			[DQ_BITS-1:0] 			dq;
     output reg			[DQS_BITS-1:0] 			dqs_out;
-    output  reg                   		               dqs_en;
+    output                     		               dqs_en;
     input			[DQS_BITS-1:0] 			dqs_tristate_in;
     output reg                       				odt;
-    output [7:0]						debug;
-  	
+    output reg [7:0]						debug;
+  	input [2:0] sel;
  
 
-// Clocks
-	wire [1:0] locked;	
-	wire clkfb;
+	
+	wire [1:0] locked;
  	wire dqs_clk;
-	wire clk_i;
-	wire clk_400M_n = clk_i;
-        pll_100M_400M  pl(clk, clk_i, clk_400M ,dqs_clk, locked[0]);
+	wire clk_400M_n;
+	wire clk_200M;
+	wire clk_200M_ps;
+        pll_100M_400M  pl(clk, clk_200M, clk_200M_ps, clk_400M_n, clk_400M ,dqs_clk, locked[0]);
+
+	
+
+
 
 	
 // States
@@ -103,7 +108,7 @@ module dram_controller(
     wire [5:0] STATE_READ_ACTIVATE_NOP		=		6'd26;
     wire [5:0] STATE_READ_NOP			=		6'd27;
     wire [5:0] STATE_PRECHARGE_NOP		=		6'd28;
-    wire [5:0] STATE_REFRESH_NOP		=		6'd29;
+    wire [5:0] STATE_REFRESH_NOP		=		6'd63;
     wire [5:0] STATE_WRITE_ACTIVATE		=		6'd30;
     wire [5:0] STATE_READ_ACTIVATE		=		6'd31;
 
@@ -111,54 +116,66 @@ module dram_controller(
 
 
 // IO Buffers
-    reg		[BL_MAX*DQ_BITS+DQ_BITS-1:0] 		dq_write_buffer;
+    reg		[2*DQ_BUF_PADDING+BL_MAX*DQ_BITS+DQ_BITS-1:0] 		dq_write_buffer;
+    wire		[2*DQ_BITS-1:0] 		                            dq_write_buffer2;
     reg		[(BL_MAX/2)*DQ_BITS-1:0] 		dq_read_buffer_0;
     reg		[(BL_MAX/2)*DQ_BITS-1:0] 		dq_read_buffer_1;
     reg		[ROW_BITS+COL_BITS-1:0]			a_buffer;
     reg		[BA_BITS-1:0]				ba_buffer;
 
+  
+    
+    /*
+    always @(posedge clk_200M) begin
+	if (state == STATE_IDLE)    
+		dq_write_buffer <= {{DQ_BUF_PADDING{1'b0}},write_data,{DQ_BUF_PADDING{1'b0}}};
+	else if (state == STATE_WRITE_NOP)		
+		dq_write_buffer <= (dq_write_buffer >> DQ_BITS*4);	
+    end
+    */
+ 
+            genvar i;
+/*    generate
+        for (i=0; i<2*DQ_BITS; i=i+1) begin : dq_in_block
+       ODDR oddr_i2 (.Q(dq_write_buffer2[i]), .C(clk_200M),.CE(1'b1), .R(1'b0),.S(1'b0), .D1(dq_write_buffer[i+2*DQ_BITS]), .D2(dq_write_buffer[i]));
+       end
+    endgenerate
+*/
 // DQ and DQS
     reg                         dq_en;
     reg           [DM_BITS-1:0] dm_out;
     wire           [DQ_BITS-1:0] dq_out;
     assign dm = dm_out;
 
-        genvar i;
 	wire [DQ_BITS-1:0] dq_tristate_out;
+	assign dq_out = write_data[15:0];
 	
 	generate
     	for (i=0; i<DQ_BITS; i=i+1) begin : dq_primitives
    	   IOBUF io (.O(dq_tristate_out[i]),.IO(dq[i]), .I(dq_out[i]),.T(~dq_en));
-	   ODDR2 oddr_i2 (.Q(dq_out[i]), .C0(clk_400M_n), .C1(clk_400M), .R(1'b0),.S(1'b0), .D0(dq_write_buffer[i]), .D1(dq_write_buffer[i+DQ_BITS]));
+//	   ODDR oddr_i2 (.Q(dq_out[i]), .C(clk_400M),.CE(1'b1), .R(1'b0),.S(1'b0), .D1(dq_write_buffer2[i]), .D2(dq_write_buffer2[i+DQ_BITS]));
    	end
 	endgenerate
 
-        always @(*) dqs_out = {DQS_BITS{dqs_clk}};
+        always @(*) dqs_out = {DQS_BITS{dqs_clk}} ;
+
 
 	always @(posedge dqs_tristate_in[0]) begin
-			dq_read_buffer_0		<=	dq_read_buffer_0 << (DQ_BITS);
-			dq_read_buffer_0[DQ_BITS-1:0]	<=	dq_tristate_out;
+			dq_read_buffer_0		<=	(dq_read_buffer_0 << (DQ_BITS)) ;
+			dq_read_buffer_0[DQ_BITS-1:0]	<=	  (~dq_en) ?  dq_tristate_out : dq_tristate_out;//{DQ_BITS{1'b0}};
     	end
 	
    	always @(negedge dqs_tristate_in[0]) begin
 			
 				dq_read_buffer_1		<=	dq_read_buffer_1 << (DQ_BITS);
-				dq_read_buffer_1[DQ_BITS-1:0]	<=	dq_tristate_out;
+				dq_read_buffer_1[DQ_BITS-1:0]	<=	(~dq_en) ? dq_tristate_out: dq_tristate_out;//{DQ_BITS{1'b0}};
     	end 
 
 
-    	always @(posedge clk) begin
-		if (state == STATE_WRITE_NOP) begin
-			if (otc_write <= (bl>>1)+32'd1)
-				dqs_en <= 1'b1;
-			else
-				dqs_en <= 1'b0;
-		end else
-			dqs_en <= 0;
-    	end	
+    	assign dqs_en = ((state == STATE_WRITE_NOP) && (((otc_write == 2) && clk_200M && clk_400M_n)  || (otc_write == 3) || (otc_write == 4) || ((otc_write == 5) && ~clk_200M_ps))) ? 1'b1 : 1'b0; 
  
-    
 
+	
 // Functions
     function integer ceil;
 	input number;
@@ -178,7 +195,7 @@ module dram_controller(
     endfunction
 
 // Timing Definitions
-    integer              tck	 =2500;
+    integer                     tck	 =2500;
     wire                 [11:0] tccd     = TCCD;
     wire                 [11:0] tcke     = max(ceil(TCKE/tck), TCKE_TCK);
     wire                 [11:0] tckesr   = TCKESR_TCK;
@@ -198,7 +215,7 @@ module dram_controller(
     wire                 [11:0] trcd     = ceil(TRCD/tck);
     wire                 [11:0] trfc     = ceil(TRFC_MIN/tck);
     wire                 [11:0] trp      = ceil(TRP/tck);
-    wire                 [11:0] trrd     = max(ceil(TRRD/tck), TRRD_TCK);
+    wire                 [11:0] trrd     = max(ceil(TRRD/tck), TRRD_TCK); 
     wire                 [11:0] trtp     = max(ceil(TRTP/tck), TRTP_TCK);
     wire                 [11:0] twr      = ceil(TWR/tck);
     wire                 [11:0] twtr     = max(ceil(TWTR/tck), TWTR_TCK);
@@ -241,17 +258,17 @@ module dram_controller(
 
 // Change State Logic: Delays, One Time Counters and Change State Triggers
 
-   wire [31:0] delay_powerup_0		=	32'd40000;
-   wire [31:0] delay_powerup_1		=	32'd100000;
-   wire [31:0] delay_precharge		=	{20'd0 ,trp}>>2;	
-   wire [31:0] delay_activate			=  	{20'd0, trcd}>>2;
-   wire [31:0] delay_write			=	{20'd0,{{7'd0,wl} + 12'd4 + twtr}}>>2;
-   wire [31:0] delay_read			=	({27'd0, rl} + (bl>>1) + 32'd1)>>2;
-   wire [31:0] delay_load_mode			=	({20'd0, tmrd-12'd1} + 32'd1)>>2;
-   wire [31:0] delay_initialization_final	=	(32'd512)>>2;
+   wire [31:0] delay_powerup_0		=	32'd80000;
+   wire [31:0] delay_powerup_1		=	32'd200000;
+   wire [31:0] delay_precharge		=	{20'd0 ,trp}>>1;	
+   wire [31:0] delay_activate			=  	{20'd0, trcd}>>1;
+   wire [31:0] delay_write			=	{20'd0,{{7'd0,wl} + 12'd4 + twtr}}>>1;
+   wire [31:0] delay_read			=	({27'd0, rl} + (bl>>1) + 32'd1)>>1;
+   wire [31:0] delay_load_mode			=	({20'd0, tmrd-12'd1} + 32'd1)>>1;
+   wire [31:0] delay_initialization_final	=	(32'd512)>>0;
    wire [31:0] delay_powerup_final		=	(tx_pr)>>1;
-   wire [31:0] delay_write_0			=	({27'd0,wl}  + (bl>>1) + 32'd1)>>2;
-   wire [31:0] delay_refresh			=	{20'd0,trfc}>>2;
+   wire [31:0] delay_write_0			=	7;///({27'd0,wl}  + (bl>>1))>>1);
+   wire [31:0] delay_refresh			=	{20'd0,trfc}>>1;
 
 
    reg [31:0] otc_powerup_0;
@@ -286,10 +303,11 @@ module dram_controller(
    wire change_precharge_nop_state = (otc_precharge) ? 0 : 1;
    wire change_read_nop_state = (otc_read) ? 0 : 1;
    wire change_refresh_nop_state = (otc_refresh) ? 0 : 1;
+   
+   initial otc_powerup_0 = delay_powerup_0;
 
-
-always @(posedge clk) begin
-	otc_powerup_0		<=	((state == STATE_POWERUP_0) && !rst_i) 	? otc_powerup_0 	- (otc_powerup_0      ? 32'd1 : 32'd0) 		: delay_powerup_0;
+always @(posedge clk_200M) begin
+	otc_powerup_0		<=	((state == STATE_POWERUP_0) && !rst_i && locked[0]) 	? otc_powerup_0 	- (otc_powerup_0      ? 32'd1 : 32'd0) 		: delay_powerup_0;
 	otc_powerup_1		<=	(state == STATE_POWERUP_1) 		? otc_powerup_1 	- (otc_powerup_1      ? 32'd1 : 32'd0) 		: delay_powerup_1;
 	otc_powerup_1_nop	<=	(state == STATE_POWERUP_1_NOP) 		? otc_powerup_1_nop 	- (otc_powerup_1_nop  ? 32'd1 : 32'd0) 		: delay_powerup_final;
 	otc_zq			<=	(state == STATE_ZQCALLIBRATION_NOP) 	? otc_zq 		- (otc_zq ? 32'd1 : 32'd0) 			: delay_load_mode;
@@ -299,313 +317,563 @@ always @(posedge clk) begin
 	otc_loadmode0		<=	(state == STATE_LOADMODE_0_NOP) 	? otc_loadmode0 	- (otc_loadmode0  ? 32'd1 : 32'd0) 		: delay_initialization_final;
 	otc_setodt		<=	(state == STATE_SET_ODT_NOP) 		? otc_setodt 		- (otc_setodt  ? 32'd1 : 32'd0) 		: 32'd5;
 	otc_write_act		<=	(state == STATE_WRITE_ACTIVATE_NOP) 	? otc_write_act 	- (otc_write_act  ? 32'd1 : 32'd0) 		: delay_activate;
-	otc_write		<=	(state == STATE_WRITE_NOP) 		? otc_write 		- (otc_write  ? 32'd1 : 32'd0) 			: delay_write_0 + 32'd2;
+	otc_write		<=	(state == STATE_WRITE_NOP) 		? otc_write 		- (otc_write  ? 32'd1 : 32'd0) 			: delay_write_0;
 	otc_read_activate	<=	(state == STATE_READ_ACTIVATE_NOP) 	? otc_read_activate 	- (otc_read_activate  ? 32'd1 : 32'd0) 		: delay_activate;
-	otc_read		<=	(state == STATE_READ_NOP) 		? otc_read 		- (otc_read  ? 32'd1 : 32'd0) 			: delay_read + 32'd1;
-	otc_precharge		<=	(state == STATE_PRECHARGE_NOP) 		? otc_precharge 	- (otc_precharge  ? 32'd1 : 32'd0) 		: delay_precharge + 32'd1;
+	otc_read		<=	(state == STATE_READ_NOP) 		? otc_read 		- (otc_read  ? 32'd1 : 32'd0) 			: delay_read;
+	otc_precharge		<=	(state == STATE_PRECHARGE_NOP) 		? otc_precharge 	- (otc_precharge  ? 32'd1 : 32'd0) 		: delay_precharge;
 	otc_refresh		<=	(state == STATE_REFRESH_NOP) 		? otc_refresh 		- (otc_refresh  ? 32'd1 : 32'd0) 		: delay_refresh;
 end
 
 
-reg [3:0] dq_counter;
 
-always @(posedge clk_400M) begin
-	if (state != STATE_WRITE_NOP)
-		dq_counter <= 9;
-	else
-		dq_counter <= dq_counter - ((dq_counter)? 3'd1 : 3'd0);
-end
 
-// State Machine
-always @(posedge clk_i) begin
-//	refresh_counter <= (refresh_counter) ?  refresh_counter - 32'd1 : refresh_counter; 
+
+// IO Control Signals 
+   
+   assign ack =  (state == STATE_IDLE) ? 1'b1 : 1'b0;//change_write_nop_state | change_read_nop_state;
+   assign busy = (state == STATE_IDLE) ? 1'b0 : 1'b1;
+
+
+
+// State Machine - Sequential
+always @(posedge clk_200M) begin
+	refresh_counter <= (refresh_counter) ?  refresh_counter - 32'd1 : refresh_counter; 
 	if (rst_i || ~locked[0]) begin
 		state 			<= 	STATE_POWERUP_0;
-		rst_n   		<= 	1'b0;
-		cke			<=	1'b0;
-		cs_n			<=	1'b1;
-		ras_n			<=	1'b1;
-		cas_n  			<=	1'b1;
-	        we_n   			<=	1'b1;
-	        ba     			<=	{BA_BITS{1'bz}};
-	       	a      			<=	{ADDR_BITS{1'bz}};
-	        odt	 		<=	1'b0;
-	        dq_en   		<=	1'b0;
-		dm_out			<=	{DM_BITS{1'bz}};
-		ack			<=	1'b0;
-		busy			<=	1'b1;
-		dq_write_buffer		<= 	0;
-		read_data 		<=	0;
-//		refresh_counter		<=	0;
-		
 	end else if (state == STATE_POWERUP_0) begin
        		state <= (change_powerup_0_state) ? STATE_POWERUP_1 : STATE_POWERUP_0;
-		rst_n <= 1'b0;
-            	cke <= 1'b0;
-            	cs_n <= 1'b1;
 	
 	end else if (state == STATE_POWERUP_1) begin
-		state <= STATE_POWERUP_1_NOP; 
-		rst_n <= 1'b1;
 		state <= (change_powerup_1_state) ? STATE_POWERUP_1_NOP : STATE_POWERUP_1;
 
 	end else if (state == STATE_POWERUP_1_NOP) begin
 		state <= (change_powerup_1_nop_state) ? STATE_ZQCALLIBRATION : STATE_POWERUP_1_NOP;		
-		cke   <= 1'b1;
-            	cs_n  <= 1'b0;
-            	ras_n <= 1'b1;
-            	cas_n <= 1'b1;
-           	we_n  <= 1'b1;
-           	ack   <= 1'b0;
 
 	end else if (state == STATE_ZQCALLIBRATION) begin
 		state <= STATE_ZQCALLIBRATION_NOP; 	
-		cke   <= 1'b1;
-            	cs_n  <= 1'b0;
-            	ras_n <= 1'b1;
-            	cas_n <= 1'b1;
-             	we_n  <= 1'b0;
-           	ba    <=  0;
-            	a     <=  1<<10;
 		
 	end else if (state == STATE_ZQCALLIBRATION_NOP) begin
 		state <= (change_zqcallibration_nop_state) ? STATE_LOADMODE_3 : STATE_ZQCALLIBRATION_NOP;		
-		cke   <= 1'b1;
-            	cs_n  <= 1'b0;
-            	ras_n <= 1'b1;
-            	cas_n <= 1'b1;
-           	we_n  <= 1'b1;
-           	ack   <= 1'b0;
 
 	end else if (state == STATE_LOADMODE_3) begin
-		state <= STATE_LOADMODE_3_NOP;
-		cke   <= 1'b1;
-            	cs_n  <= 1'b0;
-            	ras_n <= 1'b0;
-            	cas_n <= 1'b0;
-            	we_n  <= 1'b0;
-            	ba    <= 3;
-            	a     <= 0;	
+		state <= STATE_LOADMODE_3_NOP;	
 	
 	end else if (state == STATE_LOADMODE_3_NOP) begin
 		state <= (change_loadmode_3_nop_state) ? STATE_LOADMODE_2 : STATE_LOADMODE_3_NOP;		
-		cke   <= 1'b1;
-            	cs_n  <= 1'b0;
-            	ras_n <= 1'b1;
-            	cas_n <= 1'b1;
-           	we_n  <= 1'b1;
-           	ack   <= 1'b0;
 
 	end else if (state == STATE_LOADMODE_2) begin
 		state <= STATE_LOADMODE_2_NOP;
-		cke   <= 1'b1;
-            	cs_n  <= 1'b0;
-            	ras_n <= 1'b0;
-            	cas_n <= 1'b0;
-            	we_n  <= 1'b0;
-            	ba    <= 2;
-            	a     <= mode_reg2;
 	
 	end else if (state == STATE_LOADMODE_2_NOP) begin
 		state <= (change_loadmode_2_nop_state) ? STATE_LOADMODE_1 : STATE_LOADMODE_2_NOP;		
-		cke   <= 1'b1;
-            	cs_n  <= 1'b0;
-            	ras_n <= 1'b1;
-            	cas_n <= 1'b1;
-           	we_n  <= 1'b1;
-           	ack   <= 1'b0;
 
 	end else if (state == STATE_LOADMODE_1) begin
 		state <= STATE_LOADMODE_1_NOP;
-		cke   <= 1'b1;
-            	cs_n  <= 1'b0;
-            	ras_n <= 1'b0;
-            	cas_n <= 1'b0;
-            	we_n  <= 1'b0;
-            	ba    <= 1;
-            	a     <= mode_reg1;
 	
 	end else if (state == STATE_LOADMODE_1_NOP) begin
 		state <= (change_loadmode_1_nop_state) ? STATE_LOADMODE_0 : STATE_LOADMODE_1_NOP;		
-		cke   <= 1'b1;
-            	cs_n  <= 1'b0;
-            	ras_n <= 1'b1;
-            	cas_n <= 1'b1;
-           	we_n  <= 1'b1;
-           	ack   <= 1'b0;
 
 	end else if (state == STATE_LOADMODE_0) begin
 		state <= STATE_LOADMODE_0_NOP;
-		cke   <= 1'b1;
-            	cs_n  <= 1'b0;
-            	ras_n <= 1'b0;
-            	cas_n <= 1'b0;
-            	we_n  <= 1'b0;
-            	ba    <= 0;
-            	a     <= mode_reg0;
 	
 	end else if (state == STATE_LOADMODE_0_NOP) begin
 		state <= (change_loadmode_0_nop_state) ? STATE_SET_ODT : STATE_LOADMODE_0_NOP;		
-		cke   <= 1'b1;
-            	cs_n  <= 1'b0;
-            	ras_n <= 1'b1;
-            	cas_n <= 1'b1;
-           	we_n  <= 1'b1;
-           	ack   <= 1'b0;
 
 	end else if (state == STATE_SET_ODT) begin
 		state <= STATE_SET_ODT_NOP;
-		odt <= 1;
 
 	end else if (state == STATE_SET_ODT_NOP) begin
 		state <= (change_set_odt_nop_state) ? STATE_IDLE : STATE_SET_ODT_NOP;		
-		cke   <= 1'b1;
-            	cs_n  <= 1'b0;
-            	ras_n <= 1'b1;
-            	cas_n <= 1'b1;
-           	we_n  <= 1'b1;
-           	ack   <= 1'b0;
 
 	end else if (state == STATE_IDLE) begin
-		busy		<=	0;
-		ack = 0;
-		dq_write_buffer	<=	{write_data,{DQ_BITS{1'b0}}};	
 		a_buffer	<=	address[ROW_BITS+COL_BITS-1:0];
 		ba_buffer	<=	address[BA_BITS+ROW_BITS+COL_BITS-1:ROW_BITS+COL_BITS];
-		if (write) begin
+		if (0) begin
+		    state            <=    STATE_REFRESH;
+		    refresh_counter <=  refresh_threshold;
+		end else if (write) begin
 			state			<=	STATE_WRITE_ACTIVATE;
-			odt 			<=	1'b1; 
-			dq_en			<=	1'b1;
 		end else if (read) begin
 			state			<=	STATE_READ_ACTIVATE;
-			odt			<=	1'b0;
-			dq_en			<=	1'b0;
 		end
 
-	end else if (state == STATE_WRITE_ACTIVATE) begin
-		busy <= 1;
-		state <= STATE_WRITE_ACTIVATE_NOP ;
-		cke   <= 1'b1;
-        	cs_n  <= 1'b0;
-        	ras_n <= 1'b0;
-        	cas_n <= 1'b1;
-        	we_n  <= 1'b1;
-        	ba    <= ba_buffer;
-       		a     <=  a_buffer[ROW_BITS+COL_BITS-1:COL_BITS];
+	end else if (state == STATE_WRITE_ACTIVATE) begin 
+		state <= STATE_WRITE_ACTIVATE_NOP;
 
 	end else if (state == STATE_WRITE_ACTIVATE_NOP) begin
 		state <= (change_write_activate_nop_state) ? STATE_WRITE : STATE_WRITE_ACTIVATE_NOP;		
-		cke   <= 1'b1;
-       		cs_n  <= 1'b0;
-        	ras_n <= 1'b1;
-        	cas_n <= 1'b1;
-        	we_n  <= 1'b1;
 
 	end else if (state == STATE_WRITE) begin	
-		cke   <= 1'b1;
-            	cs_n  <= 1'b0;
-            	ras_n <= 1'b1;
-            	cas_n <= 1'b0;
-            	we_n  <= 1'b0;	
-		ba   <= ba_buffer;
-           	a     <= atemp_0 | atemp_1 | atemp_2;
-		dm_out <= 0;	
 		state <= STATE_WRITE_NOP;
-		dq_en <= 1'b1;
 
 	end else if (state == STATE_WRITE_NOP) begin
-		state <=(change_write_nop_state) ? STATE_PRECHARGE : STATE_WRITE_NOP;		
-		cke   <= 1'b1;
-            	cs_n  <= 1'b0;
-            	ras_n <= 1'b1;
-            	cas_n <= 1'b1;
-           	we_n  <= 1'b1;
-           	ack   <= (change_write_nop_state) ? 1'b1 : ack;      	
-		dq_write_buffer <= (dq_counter  == 0) ?  (dq_write_buffer >> DQ_BITS*2) : dq_write_buffer;
+		state <=(change_write_nop_state) ? STATE_PRECHARGE : STATE_WRITE_NOP;	    	
 
-	end else if (state == STATE_READ_ACTIVATE) begin
-		busy <= 1;
+	end else if (state == STATE_READ_ACTIVATE) begin 
 		state <= STATE_READ_ACTIVATE_NOP;
-		cke   <= 1'b1;
-            	cs_n  <= 1'b0;
-            	ras_n <= 1'b0;
-            	cas_n <= 1'b1;
-            	we_n  <= 1'b1;
-            	ba    <= ba_buffer;
-            	a     <=  a_buffer[ROW_BITS+COL_BITS-1:COL_BITS];
 
 	end else if (state == STATE_READ_ACTIVATE_NOP) begin
 		state <= (change_read_activate_nop_state) ? STATE_READ : STATE_READ_ACTIVATE_NOP;		
-		cke   <= 1'b1;
-            	cs_n  <= 1'b0;
-            	ras_n <= 1'b1;
-            	cas_n <= 1'b1;
-           	we_n  <= 1'b1;
 
 	end else if (state == STATE_READ) begin	
-		cke   <= 1'b1;
-            	cs_n  <= 1'b0;
-            	ras_n <= 1'b1;
-            	cas_n <= 1'b0;
-            	we_n  <= 1'b1;	
 		state <= STATE_READ_NOP;
-		ba    <= ba_buffer;
-           	a     <= atemp_0 | atemp_1 | atemp_2;
 
 	end else if (state == STATE_READ_NOP) begin
-		state <= (change_read_nop_state) ? STATE_PRECHARGE : STATE_READ_NOP;		
-		cke   <= 1'b1;
-            	cs_n  <= 1'b0;
-            	ras_n <= 1'b1;
-            	cas_n <= 1'b1;
-           	we_n  <= 1'b1;
-           	ack   <= (change_read_nop_state) ? 1'b1 : ack;      	
+		state <= (change_read_nop_state) ? STATE_PRECHARGE : STATE_READ_NOP;	
 		read_data  <=	 {dq_read_buffer_1,dq_read_buffer_0};
             	
 	end else if (state == STATE_PRECHARGE) begin
 		state <= STATE_PRECHARGE_NOP;
-		cke   <= 1'b1;
-            	cs_n  <= 1'b0;
-            	ras_n <= 1'b0;
-            	cas_n <= 1'b1;
-            	we_n  <= 1'b0;
-            	ba    <= ba_buffer;
-            	a     <= 0;
-            	ack   <= 0;
- 	
 	end else if (state == STATE_PRECHARGE_NOP) begin
 		state <= (change_precharge_nop_state) ? STATE_IDLE : STATE_PRECHARGE_NOP;		
-		cke   <= 1'b1;
-            	cs_n  <= 1'b0;
-            	ras_n <= 1'b1;
-            	cas_n <= 1'b1;
-           	we_n  <= 1'b1;
-           	ack   <= 1'b0;      	
             	
 	end else if (state == STATE_REFRESH) begin
-		cke   <= 1'b1;
-            	cs_n  <= 1'b0;
-            	ras_n <= 1'b0;
-            	cas_n <= 1'b0;
-            	we_n  <= 1'b1;
 		state <= STATE_REFRESH_NOP; 	
 	
 	end else if (state == STATE_REFRESH_NOP) begin
 		state <= (change_refresh_nop_state) ? STATE_IDLE : STATE_REFRESH_NOP;		
-		cke   <= 1'b1;
-            	cs_n  <= 1'b0;
-            	ras_n <= 1'b1;
-            	cas_n <= 1'b1;
-           	we_n  <= 1'b1;
-           	ack   <= 1'b0;
 	end
 end
 
 
+
+
+
+
+// State Machine Combinational
+always @(*) begin
+	dm_out			=	{DM_BITS{1'b0}};
+	if (rst_i || ~locked[0]) begin
+		rst_n   		= 	1'b0;
+		cke			=	1'b0;
+		cs_n			=	1'b1;
+		ras_n			=	1'b1;
+		cas_n  			=	1'b1;
+	        we_n   			=	1'b1;
+	        ba     			=	{BA_BITS{1'bz}};
+	       	a      			=	{ADDR_BITS{1'bz}};
+	        odt	 		=	1'b0;
+	        dq_en   		=	1'b0;
+			
+	end else if (state == STATE_POWERUP_0) begin
+		rst_n   		= 	1'b0;
+		cke			=	1'b0;
+		cs_n			=	1'b1;
+		ras_n			=	1'b1;
+		cas_n  			=	1'b1;
+	        we_n   			=	1'b1;
+	        ba     			=	{BA_BITS{1'bz}};
+	       	a      			=	{ADDR_BITS{1'bz}};
+	        odt	 		=	1'b0;
+	        dq_en   		=	1'b0;
+	
+	end else if (state == STATE_POWERUP_1) begin
+		rst_n   		= 	1'b1;
+		cke			=	1'b0;
+		cs_n			=	1'b1;
+		ras_n			=	1'b1;
+		cas_n  			=	1'b1;
+	        we_n   			=	1'b1;
+	        ba     			=	{BA_BITS{1'bz}};
+	       	a      			=	{ADDR_BITS{1'bz}};
+	        odt	 		=	1'b0;
+	        dq_en   		=	1'b0;
+
+	end else if (state == STATE_POWERUP_1_NOP) begin
+		rst_n   		= 	1'b1;
+		cke			=	1'b1;
+		cs_n			=	1'b0;
+		ras_n			=	1'b1;
+		cas_n  			=	1'b1;
+	        we_n   			=	1'b1;
+	        ba     			=	{BA_BITS{1'bz}};
+	       	a      			=	{ADDR_BITS{1'bz}};
+	        odt	 		=	1'b0;
+	        dq_en   		=	1'b0;
+
+	end else if (state == STATE_ZQCALLIBRATION) begin
+		rst_n   		= 	1'b1;
+		cke			=	1'b1;
+		cs_n			=	1'b0;
+		ras_n			=	1'b1;
+		cas_n  			=	1'b1;
+	        we_n   			=	~clk_200M_ps;
+	        ba     			=	0;
+	       	a      			=	1<<10;
+	        odt	 		=	1'b0;
+	        dq_en   		=	1'b0;
+		
+	end else if (state == STATE_ZQCALLIBRATION_NOP) begin
+		rst_n   		= 	1'b1;
+		cke			=	1'b1;
+		cs_n			=	1'b0;
+		ras_n			=	1'b1;
+		cas_n  			=	1'b1;
+	        we_n   			=	1'b1;
+	        ba     			=	0;
+	       	a      			=	1<<10;
+	        odt	 		=	1'b0;
+	        dq_en   		=	1'b0;
+
+	end else if (state == STATE_LOADMODE_3) begin
+		rst_n   		= 	1'b1;
+		cke			=	1'b1;
+		cs_n			=	1'b0;
+		ras_n			=	~clk_200M_ps;
+		cas_n  			=	~clk_200M_ps;
+	        we_n   			=	~clk_200M_ps;
+	        ba     			=	3;
+	       	a      			=	0;
+	        odt	 		=	1'b0;
+	        dq_en   		=	1'b0;
+	
+	end else if (state == STATE_LOADMODE_3_NOP) begin
+		rst_n   		= 	1'b1;
+		cke			=	1'b1;
+		cs_n			=	1'b0;
+		ras_n			=	1'b1;
+		cas_n  			=	1'b1;
+	        we_n   			=	1'b1;
+	        ba     			=	3;
+	       	a      			=	0;
+	        odt	 		=	1'b0;
+	        dq_en   		=	1'b0;
+
+	end else if (state == STATE_LOADMODE_2) begin
+		rst_n   		= 	1'b1;
+		cke			=	1'b1;
+		cs_n			=	1'b0;
+		ras_n			=	~clk_200M_ps;
+		cas_n  			=	~clk_200M_ps;
+	        we_n   			=	~clk_200M_ps;
+	        ba     			=	2;
+	       	a      			=	mode_reg2;
+	        odt	 		=	1'b0;
+	        dq_en   		=	1'b0;
+	
+	end else if (state == STATE_LOADMODE_2_NOP) begin
+		rst_n   		= 	1'b1;
+		cke			=	1'b1;
+		cs_n			=	1'b0;
+		ras_n			=	1'b1;
+		cas_n  			=	1'b1;
+	        we_n   			=	1'b1;
+	        ba     			=	2;
+	       	a      			=	mode_reg2;
+	        odt	 		=	1'b0;
+	        dq_en   		=	1'b0;
+
+	end else if (state == STATE_LOADMODE_1) begin
+		rst_n   		= 	1'b1;
+		cke			=	1'b1;
+		cs_n			=	1'b0;
+		ras_n			=	~clk_200M_ps;
+		cas_n  			=	~clk_200M_ps;
+	        we_n   			=	~clk_200M_ps;
+	        ba     			=	1;
+	       	a      			=	mode_reg1;
+	        odt	 		=	1'b0;
+	        dq_en   		=	1'b0;
+	
+	end else if (state == STATE_LOADMODE_1_NOP) begin
+		rst_n   		= 	1'b1;
+		cke			=	1'b1;
+		cs_n			=	1'b0;
+		ras_n			=	1'b1;
+		cas_n  			=	1'b1;
+	        we_n   			=	1'b1;
+	        ba     			=	1;
+	       	a      			=	mode_reg1;
+	        odt	 		=	1'b0;
+	        dq_en   		=	1'b0;
+
+	end else if (state == STATE_LOADMODE_0) begin
+		rst_n   		= 	1'b1;
+		cke			=	1'b1;
+		cs_n			=	1'b0;
+		ras_n			=	~clk_200M_ps;
+		cas_n  			=	~clk_200M_ps;
+	        we_n   			=	~clk_200M_ps;
+	        ba     			=	0;
+	       	a      			=	mode_reg0;
+	        odt	 		=	1'b0;
+	        dq_en   		=	1'b0;
+	
+	end else if (state == STATE_LOADMODE_0_NOP) begin
+		rst_n   		= 	1'b1;
+		cke			=	1'b1;
+		cs_n			=	1'b0;
+		ras_n			=	1'b1;
+		cas_n  			=	1'b1;
+	        we_n   			=	1'b1;
+	        ba     			=	0;
+	       	a      			=	mode_reg0;
+	        odt	 		=	1'b0;
+	        dq_en   		=	1'b0;
+
+	end else if (state == STATE_SET_ODT) begin
+		rst_n   		= 	1'b1;
+		cke			=	1'b1;
+		cs_n			=	1'b0;
+		ras_n			=	1'b1;
+		cas_n  			=	1'b1;
+	        we_n   			=	1'b1;
+	        ba     			=	0;
+	       	a      			=	0;
+	        odt	 		=	1'b1;
+	        dq_en   		=	1'b0;
+
+	end else if (state == STATE_SET_ODT_NOP) begin
+		rst_n   		= 	1'b1;
+		cke			=	1'b1;
+		cs_n			=	1'b0;
+		ras_n			=	1'b1;
+		cas_n  			=	1'b1;
+	        we_n   			=	1'b1;
+	        ba     			=	0;
+	       	a      			=	0;
+	        odt	 		=	1'b1;
+	        dq_en   		=	1'b0;
+
+	end else if (state == STATE_IDLE) begin
+		rst_n   		= 	1'b1;
+		cke			=	1'b1;
+		cs_n			=	1'b0;
+		ras_n			=	1'b1;
+		cas_n  			=	1'b1;
+	        we_n   			=	1'b1;
+	        ba     			=	0;
+	       	a      			=	0;
+	        odt	 		=	1'b1;
+	        dq_en   		=	1'b0;
+
+	end else if ((state == STATE_WRITE_ACTIVATE) || (state == STATE_READ_ACTIVATE)) begin 
+		rst_n   		= 	1'b1;
+		cke			=	1'b1;
+		cs_n			=	1'b0;
+		ras_n			=	~clk_200M_ps;
+		cas_n  			=	1'b1;
+	        we_n   			=	1'b1;
+	        ba     			=	ba_buffer;
+	       	a      			=	a_buffer[ROW_BITS+COL_BITS-1:COL_BITS];
+	        odt	 		=	(state == STATE_WRITE_ACTIVATE);
+	        dq_en   		=	1'b0;
+
+	end else if ((state == STATE_WRITE_ACTIVATE_NOP) || (state == STATE_READ_ACTIVATE_NOP)) begin
+		rst_n   		= 	1'b1;
+		cke			=	1'b1;
+		cs_n			=	1'b0;
+		ras_n			=	1'b1;
+		cas_n  			=	1'b1;
+	        we_n   			=	1'b1;
+	        ba     			=	ba_buffer;
+	       	a      			=	a_buffer[ROW_BITS+COL_BITS-1:COL_BITS];
+	        odt	 		=	(state == STATE_WRITE_ACTIVATE_NOP);
+	        dq_en   		=	1'b0;
+
+	end else if (state == STATE_WRITE) begin	
+		rst_n   		= 	1'b1;
+		cke			=	1'b1;
+		cs_n			=	1'b0;
+		ras_n			=	1'b1;
+		cas_n  			=	~clk_200M_ps;
+	        we_n   			=	~clk_200M_ps;
+	        ba     			=	ba_buffer;
+	       	a      			=	atemp_0 | atemp_1 | atemp_2;
+	        odt	 		=	1'b1;
+	        dq_en   		=	1'b1;
+
+	end else if (state == STATE_WRITE_NOP) begin
+		rst_n   		= 	1'b1;
+		cke			=	1'b1;
+		cs_n			=	1'b0;
+		ras_n			=	1'b1;
+		cas_n  			=	1'b1;
+	        we_n   			=	1'b1;
+	        ba     			=	ba_buffer;
+	       	a      			=	atemp_0 | atemp_1 | atemp_2;
+	        odt	 		=	1'b1;
+	        dq_en   		=	1'b1;    	
+
+	end else if (state == STATE_READ) begin	
+		rst_n   		= 	1'b1;
+		cke			=	1'b1;
+		cs_n			=	1'b0;
+		ras_n			=	1'b1;
+		cas_n  			=	~clk_200M_ps;
+	        we_n   			=	1'b1;
+	        ba     			=	ba_buffer;
+	       	a      			=	atemp_0 | atemp_1 | atemp_2;
+	        odt	 		=	1'b0;
+	        dq_en   		=	1'b0;
+
+	end else if (state == STATE_READ_NOP) begin
+		rst_n   		= 	1'b1;
+		cke			=	1'b1;
+		cs_n			=	1'b0;
+		ras_n			=	1'b1;
+		cas_n  			=	1'b1;
+	        we_n   			=	1'b1;
+	        ba     			=	ba_buffer;
+	       	a      			=	atemp_0 | atemp_1 | atemp_2;
+	        odt	 		=	1'b0;
+	        dq_en   		=	1'b0;     	
+            	
+	end else if (state == STATE_PRECHARGE) begin
+		rst_n   		= 	1'b1;
+		cke			=	1'b1;
+		cs_n			=	1'b0;
+		ras_n			=	~clk_200M_ps;
+		cas_n  			=	1'b1;
+	        we_n   			=	~clk_200M_ps;
+	        ba     			=	ba_buffer;
+	       	a      			=	0;
+	        odt	 		=	1'b1;
+	        dq_en   		=	1'b0; 
+ 	
+	end else if (state == STATE_PRECHARGE_NOP) begin
+		rst_n   		= 	1'b1;
+		cke			=	1'b1;
+		cs_n			=	1'b0;
+		ras_n			=	1'b1;
+		cas_n  			=	1'b1;
+	        we_n   			=	1'b1;
+	        ba     			=	ba_buffer;
+	       	a      			=	0;
+	        odt	 		=	1'b1;
+	        dq_en   		=	1'b0; 
+            	
+	end else if (state == STATE_REFRESH) begin
+		rst_n   		= 	1'b1;
+		cke			=	1'b1;
+		cs_n			=	1'b0;
+		ras_n			=	~clk_200M_ps;
+		cas_n  			=	~clk_200M_ps;
+	        we_n   			=	1'b1;
+	        ba     			=	ba_buffer;
+	       	a      			=	0;
+	        odt	 		=	1'b1;
+	        dq_en   		=	1'b0; 	
+	
+	end else if (state == STATE_REFRESH_NOP) begin
+		rst_n   		= 	1'b1;
+		cke			=	1'b1;
+		cs_n			=	1'b0;
+		ras_n			=	1'b1;
+		cas_n  			=	1'b1;
+	        we_n   			=	1'b1;
+	        ba     			=	ba_buffer;
+	       	a      			=	0;
+	        odt	 		=	1'b1;
+	        dq_en   		=	1'b0; 	
+	end else begin
+			rst_n   		= 	1'b1;
+    cke            =    1'b1;
+    cs_n            =    1'b0;
+    ras_n            =    1'b1;
+    cas_n              =    1'b1;
+        we_n               =    1'b1;
+        ba                 =    ba_buffer;
+           a                  =    0;
+        odt             =    1'b1;
+        dq_en           =    1'b0; 
+	
+	
+	
+	
+	
+	end
+end
 // Debug output
-assign debug = (rst_i) ? 8'b10101010 : {2'd0,state}; 
 
+`ifdef DEBUG
 
+reg [31:0] count1;
+reg [31:0] count2;
+reg [31:0] count3;
+reg [31:0] count4;
+reg [31:0] count5;
+reg [1:0] clk_div;
+wire [31:0] counter_limit = (32'h05_F5_E1_01) << 3;
+
+initial count1 = 0;
+initial count2 = 0;
+initial count3 = 0;
+initial count4 = 0;
+initial count5 = 0;
+initial clk_div = 2'b11;
+
+wire check1 = (count1 >= (counter_limit >> 1));
+wire check2 = (count2 >= (counter_limit >> 1));
+wire check3 = (count3 >= (counter_limit >> 1));
+wire check4 = (count4 >= (counter_limit >> 1));
+wire check5 = (count5 >= (counter_limit >> 1));
+
+always @(posedge clk)
+    count1 <= (count1 >= counter_limit) ?  0 : count1 + 32'd1;
+            
+always @(posedge clk_200M)
+    count2 <= (count2 >= counter_limit) ?  0 : count2 + 32'd1;
+    
+always @(posedge clk_400M)
+    count3 <= (count3 >= counter_limit) ?  0 : count3 + 32'd1;
+    
+always @(posedge clk_400M_n)
+    count4 <= (count4 >= counter_limit) ?  0 : count4 + 32'd1;
+
+always @(posedge dqs_clk)
+    count5 <= (count5 >= counter_limit) ?  0 : count5 + 32'd1;
+    
+always @(posedge clk_400M_n)
+    clk_div <=  clk_div + 2'd1;
+ 
+reg [7:0] freq;
+
+always @(posedge clk_400M_n) begin
+    if ((count1 >= counter_limit))
+        freq <= (count4[31:24]) ? count4[31:24] : freq;
+end
+
+reg [7:0] count_dqs0;
+initial count_dqs0 = 0;
+always @(posedge dqs_tristate_in[0])
+    count_dqs0 <= count_dqs0 + 8'd1;
+    
+
+reg [7:0] count_dqs1;
+initial count_dqs1 = 0;
+always @(posedge dqs_tristate_in[1])
+    count_dqs1 <= count_dqs1 + 8'd1;
+            
+    
+reg [7:0] count_dqs_en;
+initial count_dqs_en = 0;
+always @(posedge dqs_en)
+    count_dqs_en <= count_dqs_en + 8'd1;
+    
+    
+always @(*) begin
+    if (sel == 3'd0)
+        debug = {3'd0,check5,check4,check3,check2,check1};
+    else if (sel == 3'd1) 
+        debug = (state == STATE_WRITE) ? dq_out[7:0] : debug;
+    else if (sel == 3'd2) 
+        debug = count_dqs0;
+    else if (sel == 3'd3) 
+        debug = count_dqs1;    
+    else if (sel == 3'd4) 
+        debug = state;
+    else if (sel == 3'd5) 
+        debug = count_dqs_en;
+    else if (sel == 3'd6) 
+        debug = write_data[7:0];
+    else if (sel == 3'd7) 
+        debug = read_data[15:8];
+    else 
+        debug = 0;
+end
+
+`endif
 
 endmodule 
 
@@ -621,16 +889,19 @@ module IOBUF (output O, inout IO, input I, input T);
 endmodule
 
 
-module pll_100M_400M (input clk, output reg clk_i, output reg clk_400M, output reg dqs_clk, output locked);
+module pll_100M_400M (input clk, output reg clk_200M, output reg clk_200M_ps, output reg clk_400M_n, output reg clk_400M, output reg dqs_clk, output locked);
 
 assign locked = 1;
 initial begin
 	clk_400M = 0;
-	clk_i = 1;
+	clk_400M_n = 1;
+	clk_200M = 1;
 end
-always #1250 clk_i = ~clk_i;
+always #1250 clk_400M_n = ~clk_400M_n;
 always #1250 clk_400M = ~clk_400M;
+always #2500 clk_200M = ~clk_200M;
 always @(clk_400M)  dqs_clk = #(125) clk_400M; 
+always @(clk_200M)  clk_200M_ps = #(125) clk_200M; 
 endmodule
 
 
