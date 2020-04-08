@@ -28,3 +28,9 @@ To view FPGA output, run
 ```
 cat /dev/ttyUSBx
 ```
+
+
+
+
+## Challenges
+1. The Xilinx compiler is unable to perform certain relatively simple optimizations. -Host 32 bit address/data counter-
