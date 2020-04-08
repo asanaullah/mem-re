@@ -1,7 +1,8 @@
 # Index
 
 ## tb_dram.v
-
+Implements:
+1. DRAM Controller Instantiation
 
 ## dram_controller.v
 
