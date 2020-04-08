@@ -24,4 +24,6 @@
 ## test.sh
 
 To view FPGA output, run 
-```cat /dev/ttyUSBx ```
+```
+cat /dev/ttyUSBx
+```
