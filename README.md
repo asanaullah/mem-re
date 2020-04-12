@@ -2,7 +2,7 @@
  **Mem**ory controllers for the **Re**search community
 
 ## Objective
-To develop HDL based memory controllers that are, to the *GET* (Greatest Extent Possible), i) open source, ii) FPGA vendor agnostic, iii) simple to modify, and iv) able to easily close timing after controller modifications. 
+To develop HDL based memory controllers that are, to the **GET** (Greatest Extent Possible), i) open source, ii) FPGA vendor agnostic, iii) simple to modify, and iv) able to easily close timing after controller modifications. 
 
 Note: Mem-Re is part of Project Morpheus, which is an effort to build an open source reconfigurable hardware operating system (analogous to Linux in the software world). 
 
