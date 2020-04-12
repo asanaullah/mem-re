@@ -1,6 +1,5 @@
 # **Project Mem-Re**
-_
-# **Mem**ory controllers for the **Re**search community
+ **Mem**ory controllers for the **Re**search community
 
 ## Objective
 To develop HDL based memory controllers that are, to the *GET* (Greatest Extent Possible), i) open source, ii) FPGA vendor agnostic, iii) simple to modify, and iv) able to easily close timing after controller modifications. 
