@@ -38,7 +38,7 @@ The initial board we are targeting is the Digilent Arty A35, which has a Xilinx 
 
 ## Some Links:
 
-[PLL and Differential Signalling demo using a fully open source toolchain for the Icestorm FPGA] (https://github.com/mattvenn/fpga-lvds-ddr)
+[PLL and Differential Signalling demo using a fully open source toolchain for the Icestorm FPGA](https://github.com/mattvenn/fpga-lvds-ddr)
 
 [DDR3 Memory Interface on Xilinx Zynq SOC – Free Software Compatible](
 https://blog.elphel.com/2014/06/ddr3-memory-interface-on-xilinx-zynq-soc-free-software-compatible/)
