@@ -17,7 +17,11 @@ The design is likely to have some primitives, which are typically proprietary AS
 3. Even if a circuit is expresable and can be built in a stable manner within the FPGA fabric, if the primitive is common enough across FPGAs, it is usually a good idea to provide the option of using either the primitive or its HDL equivalent. This is because the latter would i) consume the already limited reconfigurable fabric (making it difficult to place and route designs), ii) unlikely achieve the same levels of performance, and iii) have a relatively higher energy cost. 
 
 ### What will constitute as the greatest extent possible?
-Our goal is to use as much basic HDL as possible and, in case a primitive is used, to provide appropriate interfaces and compilation flags so that it can be replaced with equivalent primitives/HDL (which are supported on the target chip). Moreover, our goal is to have modularity in moderation, since too much code reuse means modifications to a module will affect all instantiations instead of only the target feature of the controller. Therefore, striking the right balance between redundancy and lines-of-code is important for ensuring a design that supports localized changes, and does not require massive code blocks to be rewritten in order to do so. 
+Our goal is to:
+1. Use as much basic HDL as possible. Anything that doesn’t deal with clock generation or a high frequency DDR data path will likely be HDL code.
+2. Provide loose coupling, appropriate interfaces and compilation flags for facilitating users in replacing primitives in the default design with equivalent circuits. 
+
+3. Minimizing, but not completely eliminating, code reuse. Striking the right balance between redundancy and lines-of-code is important for ensuring a design is both readable and easy to modify - High code reuse can sometimes make modifications difficult since a change affects all instantiations of the circuit, and not just the target part of the controller. 
 
 
 ## Motivation
@@ -44,3 +48,6 @@ The initial board we are targeting is the Digilent Arty A35, which has a Xilinx 
 https://blog.elphel.com/2014/06/ddr3-memory-interface-on-xilinx-zynq-soc-free-software-compatible/)
 
 [OpenArty Initial Effort (eventually used Xilinx MIG)](https://opencores.org/projects/wbddr3)
+
+
+
