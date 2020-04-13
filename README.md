@@ -21,7 +21,9 @@ Our goal is to:
 1. Use as much basic HDL as possible. Anything that doesn’t deal with clock generation or a high frequency DDR data path will likely be HDL code.
 2. Provide loose coupling, appropriate interfaces and compilation flags for facilitating users in replacing primitives in the default design with equivalent circuits. 
 
-3. Minimizing, but not completely eliminating, code reuse. Striking the right balance between redundancy and lines-of-code is important for ensuring a design is both readable and easy to modify - High code reuse can sometimes make modifications difficult since a change affects all instantiations of the circuit, and not just the target part of the controller. 
+3. Minimize, but not completely eliminating, code reuse. Striking the right balance between redundancy and lines-of-code is important for ensuring a design is both readable and easy to modify - High code reuse can sometimes make modifications difficult since a change affects all instantiations of the circuit, and not just the target part of the controller. 
+
+4. Provide any constraints that help reduce the effort of closing timing, provided that the constraints are applicable, with little or no modifications, to most FPGA chips. 
 
 
 ## Motivation
