@@ -1,6 +1,5 @@
 # **Project Mem-Re**
 SDRAM **Mem**ory controllers for the **Re**search community
-
 Current Version: 0.3.0
 ## Objective
 To develop HDL based SDRAM memory controllers that are, to the greatest extent possible, i) open source, ii) FPGA vendor agnostic, iii) simple to modify, and iv) able to easily close timing after controller modifications. 
@@ -73,7 +72,7 @@ We will be using Verilog HDL in the design.
 
 
 
-## FPGA-DDR3 I/O signals
+### FPGA-DDR3 I/O signals
 
 
 
@@ -87,13 +86,116 @@ We will be using Verilog HDL in the design.
 
 ### Version 0.1.0
 
+#### 3/18 Update 
+* Implemented design but state machine unstable at 400MHz (stable at 100MHz). 
+* V-1 was working in simulation. 
+* V-1 has a single clock (400MHz), single state machine design. 
 
+#### 3/20 Update 
+* Tested PLL, DDR and tristate primitives. 
+  * Attempt to find manually optimize to reduce critical paths
+  * state machine is still unstable at 400MHz. 
+* Revised goal is to get it working at a dual frequency (100/400 MHz). 
 
 ### Version 0.2
 
+#### 3/23 Update 
+* Implemented V-2 where the state machine is driven at 100MHz
+* Data output signalling is done at a higher frequency. 
+* State machine is now stable and does not glitch.
+* Still having difficulties with routing design and generating 400MHz clock.
 
+#### 3/25 Update
+* New approach: Try running at 100M/200M
+* Verify state machine sequence
+* Data will likely be corrupted 
+* Tested with manual read/write inputs and a 3 level sanity check 
+1. read, write, read
+2. read, write, read, reset design, reprogram board, read, write, read
+3. read, write, read, power cycle board, reprogram board, read, write, read 
+* Results showed that state machine sequence is good.
+
+**Updated git repo**
 
 ### Version 0.3
+
+#### 3/27 Update 
+* Implemented V-3 with 200M/400M clock and separation of state machine seq/comb logic
+* Compromise
+  * more code in multiple places now needs to be updated
+  * But design is more stable, easier to understand, and timing is easier to visualize
+* Real time verification of 100M, 200M and 400M clocks.
+* Switched from PLL to Multi mode clock manager (recommended for user clocks).
+* Wrote UART based software runtime for better testing.
+* V-3 working in Xilinx’s own behavioral simulation. 
+* However, still some bugs with reads and writes
+
+#### 3/30 Update
+* Bug fixing a data alignment problem. 
+* Improved ack/busy signalling.
+
+#### 4/1 Update
+* Bugfixes for the host interface - ended up running the UART controller at 200MHz for simplicity and reliability.  Added in extra states for more stability in interfacing the controller logic. 
+* Bugfixes for the software runtime - reduced complexity of script for more reliable testing.  
+
+#### 4/3 Update
+* Bugfixes to the host interface and software runtime helped reliably test the design
+* Some manual optimizations done to reduce slack and failing endpoints.
+* Design working! Am able to do 26 writes to different rows on each bank (8x26 today) and then read them afterwards.
+* Validated with the three step sanity check approach outlined in the 3/25 update
+* Limitations: 
+  * requires two write operations before it can be read
+    * Otherwise only every alternating byte in the word gets updated
+    * Likely due to lack of timing closure
+  * Write alignment turned off currently to reduce complexity and eliminate source of error
+    * Lowest 2 bytes of write data copied throughout the word
+  * Only works for certain rows
+    * The simulation model used to build the design is generic (12 vs 13 pins),  and so this limitation will likely require updating the addressing logic.
+  * two reads required
+    * First shows data from the previous transaction. Second shows the correct one. 
+    * Likely a bug in the host interface logic since LEDs show the correct value on the first read. 
+  * Timing not closed - unpredictable results when modified
+
+**Updated git repo**
+
+#### 4/6 Update
+* Mapped design to yosys+nextpnr
+* Nextpnr Xilinx only supports PLL and ISERDES units
+* Requires updating the constraints file
+* Initially just tested PLL
+* Unsuccessful
+  * Unpredictable circuit behavior if generated freq > 200 MHz or if phase shift requested. 
+  * Able to generate 200M and 400M clocks by cascading two PLLs
+  * Inefficient approach
+    * PLL is a very limited resource. 
+  * Loading the clocks (e.g. inverting the clock) causes the circuit to behave unpredictably. 
+* Attempted to port design to Genesys 2 board
+  * Timing closure successful
+  * However board does not respond
+  * Likely due to the addressing logic
+  * Put this on the stack for when we focus on the portability aspect of the design.
+
+#### 4/8 Update
+* Explored use of the SERDES units
+* Located on the same bank as the IO pads
+* Can substantially improve timing
+* However, are not well documented
+* Goal is to create a SERDES+wrapper module so that the current control logic/signalling does not need to be modified.
+* Currently strobe pins from the DRAM (dqs) are used to clock the read shift registers directly at positive and negative edges. 
+* Another goal is to document the SERDES units ourselves. 
+
+#### 4/10 Update
+* Attempted to close timing without SERDES unit
+* More manual optimizations
+  * Ran Xilinx timing wizard
+  * Manually floorplanned design
+  * Added multi-cycle exceptions
+  * Added double buffering for the read data
+    * Some improvements if the right clock is used for the second buffer (currently 200MHz)
+* Conclusion: The 7-series architecture makes it difficult to do this without using the SERDES primitives. 
+  * For example, the strobe IO pad is located half a chip away from the global clock buffers.
+  * Poor placement prevents strobe from being treated as a clock.
+  * Likely unable to use the dedicated clock network. 
 
 
 
