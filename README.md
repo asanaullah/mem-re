@@ -1,5 +1,6 @@
 # **Project Mem-Re**
 SDRAM **Mem**ory controllers for the **Re**search community
+
 Current Version: 0.3.0
 ## Objective
 To develop HDL based SDRAM memory controllers that are, to the greatest extent possible, i) open source, ii) FPGA vendor agnostic, iii) simple to modify, and iv) able to easily close timing after controller modifications. 
