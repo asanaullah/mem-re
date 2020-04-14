@@ -38,12 +38,68 @@ Our goal is to:
 
 The initial memory we are targeting is the DDR3 controller due its simplicity versus the newer DDR4 and upcoming (at the time of writing) DDR5.
 
-The initial board we are targeting is the Digilent Arty A35, which has a Xilinx 7-series chip. 
+The initial board we are targeting is the Digilent Arty A35, which has a Xilinx 7-series chip. While the [Nextpnr](https://github.com/daveshah1/nextpnr-xilinx) flow does support this chip, we will be using Vivado (free for this chip) for initial development in order to reduce the debugging effort timeframes. Once we have a working design, we will use it to test the open source tools to determine if they can meet the required performance/timing.
 
-We will be using Verilog HDL in the design. 
+We will be using Verilog HDL in the design.
+
+## Before We Start Coding
+
+### What is a DDR3 controller?
 
 
-## Some Links:
+
+-FSM
+-Looking at the simple flow….
+
+
+### Challenges
+
+-Frequency
+-Precision (Phases)
+-Feedback
+
+
+### Picking a starting point
+
+
+
+
+
+### Detailed DDR3 controller states
+
+
+
+
+
+
+
+## FPGA-DDR3 I/O signals
+
+
+
+
+
+
+## And We Begin…
+### Version 0.0.1
+
+
+
+### Version 0.1.0
+
+
+
+### Version 0.2
+
+
+
+### Version 0.3
+
+
+
+
+
+## Some Links
 
 [PLL and Differential Signalling demo using a fully open source toolchain for the Icestorm FPGA](https://github.com/mattvenn/fpga-lvds-ddr)
 
@@ -53,4 +109,4 @@ https://blog.elphel.com/2014/06/ddr3-memory-interface-on-xilinx-zynq-soc-free-so
 [OpenArty Initial Effort (eventually used Xilinx MIG)](https://opencores.org/projects/wbddr3)
 
 
-
+[Nextpnr-Xilinx](https://github.com/daveshah1/nextpnr-xilinx)
