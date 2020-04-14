@@ -1,8 +1,8 @@
 # **Project Mem-Re**
- **Mem**ory controllers for the **Re**search community
-
+SDRAM **Mem**ory controllers for the **Re**search community
+Current Version: 0.3.0
 ## Objective
-To develop HDL based memory controllers that are, to the greatest extent possible, i) open source, ii) FPGA vendor agnostic, iii) simple to modify, and iv) able to easily close timing after controller modifications. 
+To develop HDL based SDRAM memory controllers that are, to the greatest extent possible, i) open source, ii) FPGA vendor agnostic, iii) simple to modify, and iv) able to easily close timing after controller modifications. 
 
 **Note:** Mem-Re is part of **Project Morpheus**, which is an effort to build an open source reconfigurable hardware operating system (analogous to Linux in the software world). 
 
@@ -18,16 +18,20 @@ The design is likely to have some primitives, which are typically proprietary AS
 
 ### What will constitute as the greatest extent possible?
 Our goal is to:
-1. Use as much basic HDL as possible. Anything that doesn’t deal with clock generation or a high frequency DDR data path will likely be HDL code.
-2. Provide loose coupling, appropriate interfaces and compilation flags for facilitating users in replacing primitives in the default design with equivalent circuits. 
+1. Use **as much basic HDL as possible**. Anything that doesn’t deal with clock generation or a high frequency DDR data path will likely be HDL code.
+2. **Provide loose circuit coupling, appropriate interfaces and compilation flags** for facilitating users in replacing primitives in the default design with equivalent circuits. 
 
-3. Minimize, but not completely eliminating, code reuse. Striking the right balance between redundancy and lines-of-code is important for ensuring a design is both readable and easy to modify - High code reuse can sometimes make modifications difficult since a change affects all instantiations of the circuit, and not just the target part of the controller. 
+3. **Minimize, but not completely eliminate, code reuse**. Striking the right balance between redundancy and lines-of-code is important for ensuring a design is both readable and easy to modify - High code reuse can sometimes make modifications difficult since a change affects all instantiations of the circuit, and not just the target part of the controller. 
 
-4. Provide any constraints that help reduce the effort of closing timing, provided that the constraints are applicable, with little or no modifications, to most FPGA chips. 
+4. Provide any constraints that help **reduce the effort of closing timing**, provided that the constraints are applicable, with little or no modifications, to most FPGA chips. 
 
 
 ## Motivation
+1. **Proprietary IP blocks** only allow a limited number of parameters to be tuned.  As a result, the controller is typically not application specific. To get something that is tuned to a particular application, we either build a custom controller from scratch, or build wrappers for the vendor IP block - neither of which is an efficient approach.  Moreover, even when dealing with general explorations, such as system level research into memory controllers, we hit the same roadblocks since low level access to the data and control paths is typically not possible. Finally, there is the cost of these IP blocks.  
 
+2. **Open source memory controllers** typically suffer from multiple drawbacks. For example, typically these controllers: i) can be difficult to read and understand, ii) are built with a large number of source files and complex hierarchies that substantially increase any effort to modify and/or debug the design,  iii) have only been tested in simulation, iv) lack one or more core features, v) have poor out of box performance and/or resource usage, vi) are not vendor agnostic, and vii) are accompanied with little or no documentation.
+
+3. Through **community** centric growth, we can bridge the gap between proprietary and open source hardware, while simultaneously addressing drawbacks shared by both - similar to how it has been done in the software world. Thus, this project does not aim to provide the best possible solution, but rather aims to provide an efficient and effective platform which enables developers to collaborate towards innovation that outperforms the state of the art. 
 
 ## Target Hardware
 
@@ -35,12 +39,8 @@ The initial memory we are targeting is the DDR3 controller due its simplicity ve
 
 The initial board we are targeting is the Digilent Arty A35, which has a Xilinx 7-series chip. 
 
+We will be using Verilog HDL in the design. 
 
-## Progress
-
-- [x] a
-- [ ] b
-- [ ] b
 
 ## Some Links:
 
