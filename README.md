@@ -66,7 +66,7 @@ We will be using Verilog HDL in the design.
 
 ![alt text](https://github.com/asanaullah/mem-re/blob/master/images/micron_FSM.png "Micron Testbench Based DDR3 Controller FSM")
 
-```
+```Verilog
 power_up;
 
  // INITIALIZE SECTION
