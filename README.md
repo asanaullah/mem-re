@@ -66,7 +66,41 @@ We will be using Verilog HDL in the design.
 
 ![alt text](https://github.com/asanaullah/mem-re/blob/master/images/micron_FSM.png "Micron Testbench Based DDR3 Controller FSM")
 
+```
+power_up;
 
+ // INITIALIZE SECTION
+zq_calibration  (1);                            // perform Long ZQ Calibration
+
+load_mode       (3, 14'b00000000000000);        // Extended Mode Register (3)
+nop             (tmrd-1);
+load_mode       (2, {14'b00001000_000_000} | mr_cwl<<3); // Extended Mode Register 2 with DCC Disable
+nop             (tmrd-1);
+load_mode       (1, 14'b0000010110);            // Extended Mode Register with DLL Enable, AL=CL-1
+nop             (tmrd-1);      
+load_mode       (0, {14'b0_0_000_1_0_000_1_0_00} | mr_wr<<9 | mr_cl<<2); // Mode Register with DLL Reset
+nop             (max(TDLLK,512));
+
+odt_out         <= 1;                           // turn on odt
+nop (10);
+
+// Random Act -> Write -> Read -> Precharge
+for (r_i = 0; r_i < 2048; r_i = r_i + 1) begin
+        r_bank = $urandom_range (8);
+        r_row  = $urandom_range (1<<ROW_BITS);
+        r_col  = $urandom_range (1<<COL_BITS);
+        r_data = {$urandom,$urandom,$urandom,$urandom,$urandom,$urandom,$urandom,$urandom};
+
+        activate        (r_bank, r_row);
+        nop (trcd);
+        write           (r_bank, r_col, 0, 0, 0, r_data);
+        nop (wl + bl/2 + twtr);
+        read            (r_bank, r_col, 0, 0);
+        nop (rl + bl/2);
+        precharge       (r_bank, 0);
+        nop (trp);
+end
+```
 
 
 
