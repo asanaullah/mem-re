@@ -45,7 +45,7 @@ We will be using Verilog HDL in the design.
 
 ### What is a DDR3 controller?
 
-![alt text](https://github.com/asanaullah/mem-re/images/simple_FSM.png "Simple DDR3 Controller FSM")
+![alt text](https://github.com/asanaullah/mem-re/blob/master/images/simple_FSM.png "Simple DDR3 Controller FSM")
 
 
 ### Challenges
@@ -64,7 +64,7 @@ We will be using Verilog HDL in the design.
 ### Detailed DDR3 controller states
 
 
-![alt text](https://github.com/asanaullah/mem-re/images/micron_FSM.png "Micron Testbench Based DDR3 Controller FSM")
+![alt text](https://github.com/asanaullah/mem-re/blob/master/images/micron_FSM.png "Micron Testbench Based DDR3 Controller FSM")
 
 
 
