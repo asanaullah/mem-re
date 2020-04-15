@@ -57,8 +57,9 @@ We will be using Verilog HDL in the design.
 
 ### Picking a starting point
 
+[Micron DDR3 Part](https://www.micron.com/products/dram/ddr3-sdram/part-catalog/mt41k128m16jt-125)
 
-
+[Micron Simulation Model](https://www.micron.com/-/media/client/global/documents/products/sim-model/dram/ddr3/ddr3-sdram-verilog-model.zip?rev=542a31d8670e424386575af06149ca0b)
 
 
 ### Detailed DDR3 controller states
